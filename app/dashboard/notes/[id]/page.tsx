@@ -8,15 +8,14 @@ import { getNoteById, updateNote, deleteNote } from "@/lib/firebase";
 import { ArrowRight, Trash2, Star, Sparkles, Wand2 } from "lucide-react";
 import NoteEditor from "@/components/notes/NoteEditor";
 import { improveText } from "@/lib/gemini";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import type { Note } from "@/types";
 
 export default function NoteDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
   const { removeNote } = useNotes(user?.uid);
-  const [note, setNote] = useState<any>(null);
+  const [note, setNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
@@ -41,10 +40,10 @@ export default function NoteDetailPage() {
     fetchNote();
   }, [params.id, router]);
 
-  const handleUpdate = async (noteData: any) => {
+  const handleUpdate = async (noteData: Omit<Note, "id" | "createdAt" | "updatedAt" | "userId">) => {
     try {
       await updateNote(params.id as string, noteData);
-      setNote({ ...note, ...noteData });
+      setNote((prev) => prev ? { ...prev, ...noteData } : null);
       setIsEditing(false);
     } catch (error) {
       console.error("Error updating note:", error);
@@ -63,6 +62,7 @@ export default function NoteDetailPage() {
   };
 
   const handleToggleFavorite = async () => {
+    if (!note) return;
     try {
       await updateNote(params.id as string, { isFavorite: !note.isFavorite });
       setNote({ ...note, isFavorite: !note.isFavorite });
@@ -165,10 +165,8 @@ export default function NoteDetailPage() {
         )}
 
         {/* Content */}
-        <div className="prose prose-lg max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {note.content}
-          </ReactMarkdown>
+        <div className="prose prose-lg max-w-none whitespace-pre-wrap">
+          {note.content}
         </div>
 
         {/* AI Actions */}
@@ -189,7 +187,7 @@ export default function NoteDetailPage() {
       </div>
 
       {/* Edit Modal */}
-      {isEditing && (
+      {isEditing && note && (
         <NoteEditor
           initialNote={note}
           onClose={() => setIsEditing(false)}

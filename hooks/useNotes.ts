@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { getUserNotes, createNote, updateNote, deleteNote, getNoteById } from "@/lib/firebase";
 import type { Note } from "@/types";
 
+// نوع بيانات إنشاء الملاحظة الجديدة (بدون id, createdAt, updatedAt, userId)
+type CreateNoteData = Omit<Note, "id" | "createdAt" | "updatedAt" | "userId">;
+
 export function useNotes(userId: string | undefined) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +36,7 @@ export function useNotes(userId: string | undefined) {
     fetchNotes();
   }, [fetchNotes]);
 
-  const addNote = async (noteData: Omit<Note, "id" | "createdAt" | "updatedAt" | "userId">) => {
+  const addNote = async (noteData: CreateNoteData) => {
     if (!userId) throw new Error("المستخدم غير مسجل الدخول");
     
     try {

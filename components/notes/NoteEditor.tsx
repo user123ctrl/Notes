@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { X, Sparkles, Loader2, Palette, Tag } from "lucide-react";
 import { extractTags, summarizeText } from "@/lib/gemini";
+import type { Note } from "@/types";
 
 interface NoteEditorProps {
-  initialNote?: any;
+  initialNote?: Note;
   onClose: () => void;
-  onSave: (note: any) => void;
+  onSave: (note: Omit<Note, "id" | "createdAt" | "updatedAt" | "userId">) => void;
 }
 
 const colors = [

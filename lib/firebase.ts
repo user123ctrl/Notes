@@ -1,116 +1,87 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { 
-  getAuth, 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  updateProfile,
-  type User as FirebaseUser
-} from "firebase/auth";
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
-  serverTimestamp,
-  Timestamp,
-  type DocumentData 
-} from "firebase/firestore";
-import { Note } from "@/types";
+"use client";
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
-};
+import { useState, useEffect, useCallback } from "react";
+import { getUserNotes, createNote, updateNote, deleteNote, getNoteById } from "@/lib/firebase";
+import type { Note } from "@/types";
 
-// Initialize Firebase
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const db = getFirestore(app);
+// نوع بيانات إنشاء الملاحظة الجديدة (بدون id, createdAt, updatedAt, userId)
+type CreateNoteData = Omit<Note, "id" | "createdAt" | "updatedAt" | "userId">;
 
-// Auth functions
-export const registerUser = async (email: string, password: string, displayName: string) => {
-  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-  await updateProfile(userCredential.user, { displayName });
-  return userCredential.user;
-};
+export function useNotes(userId: string | undefined) {
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-export const loginUser = async (email: string, password: string) => {
-  const userCredential = await signInWithEmailAndPassword(auth, email, password);
-  return userCredential.user;
-};
+  const fetchNotes = useCallback(async () => {
+    if (!userId) {
+      setNotes([]);
+      setLoading(false);
+      return;
+    }
 
-export const logoutUser = () => signOut(auth);
+    try {
+      setLoading(true);
+      const userNotes = await getUserNotes(userId);
+      setNotes(userNotes);
+      setError(null);
+    } catch (err) {
+      setError("فشل في تحميل الملاحظات");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
 
-export const onAuthChange = (callback: (user: FirebaseUser | null) => void) => {
-  return onAuthStateChanged(auth, callback);
-};
+  useEffect(() => {
+    fetchNotes();
+  }, [fetchNotes]);
 
-// Firestore functions
-export const createNote = async (userId: string, noteData: Omit<Note, "id" | "createdAt" | "updatedAt">) => {
-  const docRef = await addDoc(collection(db, "notes"), {
-    ...noteData,
-    userId,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  return docRef.id;
-};
+  const addNote = async (noteData: CreateNoteData) => {
+    if (!userId) throw new Error("المستخدم غير مسجل الدخول");
+    
+    try {
+      const noteId = await createNote(userId, noteData);
+      await fetchNotes();
+      return noteId;
+    } catch (err) {
+      throw new Error("فشل في إنشاء الملاحظة");
+    }
+  };
 
-export const updateNote = async (noteId: string, noteData: Partial<Note>) => {
-  const noteRef = doc(db, "notes", noteId);
-  await updateDoc(noteRef, {
-    ...noteData,
-    updatedAt: serverTimestamp(),
-  });
-};
+  const editNote = async (noteId: string, noteData: Partial<Note>) => {
+    try {
+      await updateNote(noteId, noteData);
+      await fetchNotes();
+    } catch (err) {
+      throw new Error("فشل في تحديث الملاحظة");
+    }
+  };
 
-export const deleteNote = async (noteId: string) => {
-  await deleteDoc(doc(db, "notes", noteId));
-};
+  const removeNote = async (noteId: string) => {
+    try {
+      await deleteNote(noteId);
+      await fetchNotes();
+    } catch (err) {
+      throw new Error("فشل في حذف الملاحظة");
+    }
+  };
 
-export const getUserNotes = async (userId: string) => {
-  const q = query(
-    collection(db, "notes"),
-    where("userId", "==", userId),
-    where("isArchived", "==", false),
-    orderBy("updatedAt", "desc")
-  );
-  
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate(),
-    updatedAt: doc.data().updatedAt?.toDate(),
-  })) as Note[];
-};
+  const getNote = async (noteId: string) => {
+    try {
+      return await getNoteById(noteId);
+    } catch (err) {
+      throw new Error("فشل في جلب الملاحظة");
+    }
+  };
 
-export const getNoteById = async (noteId: string) => {
-  const docRef = doc(db, "notes", noteId);
-  const docSnap = await getDoc(docRef);
-  
-  if (docSnap.exists()) {
-    return {
-      id: docSnap.id,
-      ...docSnap.data(),
-      createdAt: docSnap.data().createdAt?.toDate(),
-      updatedAt: docSnap.data().updatedAt?.toDate(),
-    } as Note;
-  }
-  return null;
-};
-
-export { app, auth, db };
+  return {
+    notes,
+    loading,
+    error,
+    addNote,
+    editNote,
+    removeNote,
+    getNote,
+    refreshNotes: fetchNotes,
+  };
+}

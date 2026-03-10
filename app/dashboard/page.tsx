@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotes } from "@/hooks/useNotes";
-import { Plus, Search, Sparkles, FileText, Star, Archive } from "lucide-react";
+import { Plus, Search, Sparkles, FileText, Star } from "lucide-react";
 import NoteCard from "@/components/notes/NoteCard";
 import NoteEditor from "@/components/notes/NoteEditor";
 
